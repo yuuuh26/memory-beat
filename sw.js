@@ -1,9 +1,10 @@
 // 公開したアプリ本体を変更したら必ずVERSIONを増やす。
-const VERSION = '1.1.0';
+const VERSION = '1.1.1';
 const PREFIX = 'yuu-memory-beat-app-';
 const CACHE = PREFIX + VERSION;
 const ASSETS = ['.', 'index.html', 'styles.css', 'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/maskable-512.png', 'js/app.js', 'js/config.js', 'js/core.js', 'js/db.js', 'js/utils.js', 'js/game.js', 'js/speech.js', 'js/audio.js', 'js/effects.js', 'js/stats.js', 'js/charts.js', 'js/editor.js', 'js/backup.js', 'js/packs.js', 'data/toeic.json', 'js/pwa.js', 'update.html'];
-self.addEventListener('install', event => event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(ASSETS))));
+// HTTPキャッシュの旧JSを新しいSWキャッシュへ混入させない。
+self.addEventListener('install', event => event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(ASSETS.map(path => new Request(new URL(path, self.registration.scope), { cache: 'reload' }))))));
 self.addEventListener('activate', event => event.waitUntil((async () => {
   // 同じGitHub Pagesオリジンの他アプリのキャッシュは消さない。
   for (const key of await caches.keys()) if (key.startsWith(PREFIX) && key !== CACHE) await caches.delete(key);
