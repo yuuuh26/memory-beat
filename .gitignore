@@ -1,0 +1,6 @@
+node_modules/
+*.log
+qa-backup.json
+*backup*.json
+playwright-report/
+test-results/

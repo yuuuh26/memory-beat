@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="robots" content="noindex,nofollow"><meta name="theme-color" content="#17132d">
+  <meta name="description" content="覚えたい問題を、自分だけのビートで反復する暗記ゲーム。">
+  <title>MEMORY BEAT</title><link rel="icon" type="image/svg+xml" href="./icons/icon.svg"><link rel="apple-touch-icon" href="./icons/icon-192.png"><link rel="manifest" href="./manifest.webmanifest"><link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <div class="shell"><header class="brand"><button id="brand-home" aria-label="ホームへ"><img src="./icons/icon.svg" alt="" width="36" height="36"><span>MEMORY <b>BEAT</b></span></button><span class="version">v1.0</span></header>
+    <div id="deck-tabs" class="deck-tabs" role="tablist" aria-label="ゲーム切り替え"></div>
+    <main id="main"><div class="empty">読み込み中…</div></main>
+  </div>
+  <nav id="nav" aria-label="画面切り替え"><button data-page="home" class="active"><span>▣</span>HOME</button><button data-page="editor"><span>☷</span>問題</button><button data-page="stats"><span>▥</span>STATS</button><button data-page="history"><span>◷</span>履歴</button><button data-page="settings"><span>⚙</span>設定</button></nav>
+  <dialog id="dialog"><div class="dialog-head"><h2 id="dialog-title"></h2><button id="dialog-close" class="icon-button" aria-label="閉じる">×</button></div><div id="dialog-body"></div></dialog>
+  <div id="effects" aria-hidden="true"></div><div id="toast" role="status" hidden></div>
+  <noscript>このアプリにはJavaScriptが必要です。</noscript><script type="module" src="./js/app.js"></script>
+</body></html>
