@@ -195,8 +195,12 @@ export class Game {
   async resume() {
     if (!this.paused || this.ended) return; this.paused = false; this.lastFrame = performance.now(); $('#pause-layer').hidden = true;
     $('#answer-controls').inert = false; $('#manual-controls').inert = false; $('#feedback-controls').inert = false; $('#choice-controls').inert = false;
+    const token = this.token;
     await this.audio.start();
-    if (this.phaseBeforePause === 'reading') await this.readQuestion();
+    // 音源準備中の再停止・終了・別の出題では古い再開処理を破棄する。
+    if (token !== this.token || this.paused || this.ended) return;
+    if (this.phase === 'init') await this.next();
+    else if (this.phaseBeforePause === 'reading') await this.readQuestion();
     else if (this.phase === 'answer') { this.audio.duck(this.recognition.mode !== 'manual'); this.listen(); }
   }
   async finish() {

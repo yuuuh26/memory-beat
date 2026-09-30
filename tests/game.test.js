@@ -32,6 +32,18 @@ test('時間モードは指定時間で終了、一時停止中は両時計を�
   const g=game();g.settings.sessionMode='time';g.remainingSession=500;g.paused=true;g.frame(400);assert.equal(g.remainingSession,500);assert.equal(g.elapsed,0);
   g.paused=false;let timedOut=false;g.settle=()=>{timedOut=true;g.phase='feedback';};g.frame(1000);assert.equal(g.remainingSession,0);assert.equal(timedOut,true);
 });
+test('開始直後に停止しても再開すると最初の問題が出る',async()=>{
+  const g=game();g.phase='init';g.audio={stop(){},async start(){}};g.speech={stop(){}};
+  let questions=0;g.next=async()=>{questions++;g.phase='answer';};
+  g.pause();assert.equal(g.paused,true);await g.resume();
+  assert.equal(g.paused,false);assert.equal(questions,1);assert.equal(g.phase,'answer');
+});
+test('音源の再開待ちに再び停止した場合は出題・読上を再開しない',async()=>{
+  const g=game();g.phase='reading';g.speech={stop(){}};let ready,reads=0;
+  g.audio={stop(){},start:()=>new Promise(resolve=>ready=resolve)};g.readQuestion=async()=>{reads++;};
+  g.pause();const resumed=g.resume();g.pause();ready();await resumed;
+  assert.equal(g.paused,true);assert.equal(reads,0);
+});
 test('音声確定が遅くても話し始めの時刻を判定に使用',()=>{
   const g=game();let handlers,actual;g.speech={listen:(_mode,callbacks)=>{handlers=callbacks;}};g.settle=(...args)=>actual=args;
   g.listen();g.elapsed=400;handlers.onSpeechStart();g.elapsed=2200;handlers.onResult(['すたー']);assert.equal(actual[0],true);assert.equal(actual[1],'voice');assert.equal(actual[2],400);
