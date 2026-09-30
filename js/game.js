@@ -27,6 +27,7 @@ export class Game {
   render() {
     $('#main').innerHTML = `<section class="game"><div class="game-top"><div><small>SCORE</small><strong id="score-value">0</strong></div><div><small>COMBO</small><strong id="combo-value">0</strong></div><div><small id="remaining-label">${this.settings.sessionMode === 'count' ? '残り' : 'TIME'}</small><strong id="remaining-value"></strong></div><button class="icon-button" id="game-pause" aria-label="一時停止">Ⅱ</button><button class="icon-button" id="game-end" aria-label="終了">×</button></div>
       <div class="game-caption"><span>${esc(this.deck.name)}</span><span>${esc(this.settings.difficulty)} · ${this.settings.direction === 'reverse' ? '答え → 問題' : '問題 → 答え'}</span></div>
+      <div id="avatar-stage" class="avatar-stage" data-mood="ready" aria-live="polite"><div id="koharu-avatar" class="koharu-avatar" aria-hidden="true"><span id="koharu-face" class="koharu-face">◕‿◕</span><small>KOHARU</small></div><div class="avatar-copy"><span id="koharu-tag">READY</span><strong id="koharu-message">いけるよ。思い出してみよう！</strong><small id="koharu-combo-note">正解をつなげるとリアクションが強くなるよ</small></div></div>
       <div class="arena"><div class="lane"></div><div id="falling" class="falling"><small>RECALL</small><strong id="game-prompt"></strong></div><div class="judgment-line"><span>ANSWER LINE</span></div><div id="pause-layer" class="pause-layer" hidden><span class="eyebrow">PAUSED</span><h2>ひと休み</h2><button id="game-resume" class="primary">再開する</button></div></div>
       <div class="game-bottom"><div class="listening"><span id="speech-status">${esc(this.recognition.label)}</span><span id="question-index"></span></div><p id="recognized" class="recognized" aria-live="polite">声に出して答えよう</p><div class="time-bar"><i id="time-fill"></i></div>
       <div id="choice-controls" hidden><div id="answer-choices" class="answer-choices" aria-label="答えの選択肢"></div><p id="choice-hint" class="muted"></p></div>
@@ -77,7 +78,7 @@ export class Game {
     if (this.ended || this.saving || this.paused || this.phase === 'reading' || this.phase === 'answer' || this.phase === 'revealed') return;
     if (!this.saved && !(await this.persistPending())) return;
     if ((this.settings.sessionMode === 'count' && this.session.answers.length >= this.session.target) || (this.settings.sessionMode === 'time' && this.remainingSession <= 0)) return this.finish();
-    this.autoNext = 0; this.speech.stop();
+    this.autoNext = 0; this.speech.stop(); this.setKoharu('ready', this.session.summary?.combo || 0);
     if (!this.queue.length) this.queue = selectQuestions(this.questions, this.ctx.state.stats, this.settings.sessionMode === 'count' ? this.session.target : this.questions.length, Math.random, Date.now(), this.current?.id);
     const q = this.queue.shift(); if (!q) return this.finish();
     this.current = q; this.displayQuestion = this.orient(q);
@@ -153,6 +154,7 @@ export class Game {
   }
   updateFeedback() {
     const answer = this.session.answers[this.pendingIndex]; this.session.summary = summarize(this.session.answers);
+    this.setKoharu(answer.grade, this.session.summary.combo);
     $('#score-value').textContent = this.session.summary.score; $('#combo-value').textContent = this.session.summary.combo;
     $('#falling').className = `falling ${this.displayQuestion.prompt.length > 40 ? 'long' : ''} reward-${answer.grade.toLowerCase()}`; $('#answer-controls').hidden = true; $('#manual-controls').hidden = true; $('#feedback-controls').hidden = false;
     document.querySelectorAll('[data-choice]').forEach(button => {
@@ -167,6 +169,22 @@ export class Game {
     $('#correct-recognition').hidden = answer.grade !== 'MISS' || !['voice', 'timeout'].includes(answer.source) || this.recognition.mode === 'manual';
     $('#recognized').textContent = answer.grade === 'MISS' ? '答えを確認して、もう一度覚えよう' : '覚えた！';
     this.audio.reward(answer.grade); rewardEffect(answer.grade, this.session.summary.combo, this.settings);
+  }
+  setKoharu(state = 'ready', combo = 0) {
+    const stage = $('#avatar-stage'), avatar = $('#koharu-avatar'), face = $('#koharu-face'), tag = $('#koharu-tag'), message = $('#koharu-message'), note = $('#koharu-combo-note');
+    if (!stage || !avatar || !face || !tag || !message || !note) return;
+    const fever = combo >= 10 && state !== 'MISS';
+    const mood = state === 'PERFECT' ? (fever ? 'fever' : 'delight') : state === 'GREAT' ? 'happy' : state === 'GOOD' ? 'smile' : state === 'MISS' ? 'oops' : fever ? 'fever' : 'ready';
+    const copy = {
+      ready: ['READY', combo ? `${combo} COMBO 継続中！` : 'いけるよ。思い出してみよう！', combo >= 5 ? '次の正解で、もっと盛り上がるよ ✨' : '正解をつなげるとリアクションが強くなるよ', '◕‿◕'],
+      PERFECT: ['PERFECT!', fever ? 'すごい！！そのまま突っ走ろう！！' : '完璧！めっちゃ覚えてる！', fever ? 'KOHARU FEVER 🔥' : combo >= 5 ? `${combo} COMBO！最高！` : 'その調子！', fever ? '≧▽≦' : '★▽★'],
+      GREAT: ['GREAT!', 'いいね！かなり覚えてる！', combo >= 5 ? `${combo} COMBO！まだ伸びる！` : '次もいこう ✨', '＾▽＾'],
+      GOOD: ['GOOD!', '正解！ちゃんと思い出せたね！', combo >= 3 ? `${combo} COMBO 継続！` : '積み重ねていこう', '◕▽◕'],
+      MISS: ['RETRY', '惜しい！答えを見て、次で取り返そう', 'ミスした問題はまた出やすくなるよ', '・へ・']
+    }[state] || ['READY', 'いけるよ。思い出してみよう！', '', '◕‿◕'];
+    stage.dataset.mood = mood; avatar.dataset.mood = mood; tag.textContent = copy[0]; message.textContent = copy[1]; note.textContent = copy[2]; face.textContent = copy[3];
+    stage.classList.remove('reaction'); void stage.offsetWidth; if (state !== 'ready') stage.classList.add('reaction');
+    document.body.classList.toggle('fever-mode', fever);
   }
   async persistPending() {
     if (this.saved || this.pendingIndex == null) return true;
@@ -210,7 +228,7 @@ export class Game {
     this.session.endedAt = nowISO(); this.session.status = 'completed'; this.session.summary = summarize(this.session.answers);
     try { await write([{ store: 'sessions', value: this.session }]); }
     catch (e) { this.phase = prior; this.pause(); toast(`終了結果を保存できませんでした：${e.message}`, true); return; }
-    this.ended = true; cancelAnimationFrame(this.raf); document.removeEventListener('visibilitychange', this.onVisibility); document.body.classList.remove('playing');
+    this.ended = true; cancelAnimationFrame(this.raf); document.removeEventListener('visibilitychange', this.onVisibility); document.body.classList.remove('playing', 'fever-mode', 'impacting');
     await this.ctx.reload(); this.ctx.showResult(this.session);
   }
 }
