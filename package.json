@@ -1,1 +1,10 @@
-{"name":"memory-beat","version":"1.0.0","private":true,"type":"module","scripts":{"test":"node --test tests/core.test.js","serve":"python3 -m http.server 8765"}}
+{
+  "name": "memory-beat",
+  "version": "1.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "TZ=Asia/Tokyo node --test --test-isolation=none tests/core.test.js tests/speech.test.js tests/sw.test.js tests/game.test.js",
+    "serve": "python3 -m http.server 8765"
+  }
+}

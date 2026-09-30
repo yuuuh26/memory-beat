@@ -1,6 +1,8 @@
 const { chromium } = require('playwright');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
+const path = require('node:path');
+const OUTPUT = process.env.MEMORY_BEAT_TEST_OUTPUT || process.cwd();
 const BASE = process.env.MEMORY_BEAT_TEST_URL || 'http://127.0.0.1:8765/memory-beat/';
 (async () => {
   const browser = await chromium.launch({headless:true,args:['--no-sandbox']});
@@ -12,7 +14,7 @@ const BASE = process.env.MEMORY_BEAT_TEST_URL || 'http://127.0.0.1:8765/memory-b
   const putSettings = async extra => page.evaluate(async values=>{const {all,put}=await import('./js/db.js');const current=(await all('settings')).find(s=>s.id==='main')||{};await put('settings',{...current,...values,id:'main'});},extra);
   await page.goto(BASE); await page.locator('#sample-create').click(); await page.locator('#start-game').waitFor();
   await putSettings({speechEnabled:false,recognitionMode:'off',bgmVolume:0,seVolume:0}); await page.reload(); await page.locator('#start-game').waitFor();
-  await page.screenshot({path:'/workspace/scratch/aff112d372ee/memory-beat-home.png',fullPage:true});
+  await page.screenshot({path:path.join(OUTPUT,'memory-beat-home.png'),fullPage:true});
   assert.equal((await getData()).questions.length,6); console.log('PASS sample creation and reload');
   const map = Object.fromEntries((await getData()).questions.map(q=>[q.prompt,q.answer]));
   await page.locator('#start-game').click();
@@ -25,12 +27,12 @@ const BASE = process.env.MEMORY_BEAT_TEST_URL || 'http://127.0.0.1:8765/memory-b
     else if(n===6){await page.locator('#reveal-answer').click();await page.locator('#manual-correct').click();}
     else {const prompt=await page.locator('#game-prompt').textContent();await page.locator('#typed-text').fill(n===4?'誤った回答':map[prompt]);await page.locator('#typed-submit').click();}
     await page.locator('#save-status').filter({hasText:'保存済み'}).waitFor();
-    if(n===1) await page.screenshot({path:'/workspace/scratch/aff112d372ee/memory-beat-game.png',fullPage:true});
+    if(n===1) await page.screenshot({path:path.join(OUTPUT,'memory-beat-game.png'),fullPage:true});
     await page.locator('#next-question').click();
   }
   await page.locator('#result-home').waitFor();
   let data=await getData();let s=data.sessions[0];assert.equal(s.answers.length,6); assert.equal(s.summary.PERFECT,2); assert.equal(s.summary.GREAT,1);assert.equal(s.summary.GOOD,1);assert.equal(s.summary.MISS,2);assert.equal(s.status,'completed');console.log('PASS grading, manual answer, timeout, pause, combo, session persistence');
-  await page.locator('#result-home').click();await go('stats'); await page.screenshot({path:'/workspace/scratch/aff112d372ee/memory-beat-stats.png',fullPage:true});
+  await page.locator('#result-home').click();await go('stats'); await page.screenshot({path:path.join(OUTPUT,'memory-beat-stats.png'),fullPage:true});
   assert((await page.locator('#main').textContent()).includes('66.7')||(await page.locator('#main').textContent()).includes('67%')); await go('history'); await page.locator('[data-session]').first().click(); assert.equal(await page.locator('.answer-item').count(),6); await page.locator('#dialog-close').click();console.log('PASS daily stats and session snapshots');
   await page.locator('#new-deck').click();await page.locator('#deck-form [name="name"]').fill('検証デッキA');await page.locator('#deck-form button[type="submit"]').click();await go('editor');
   await page.locator('#add-question').click(); await page.locator('[name="prompt"]').fill('架空の合言葉');await page.locator('[name="answer"]').fill('コメット');await page.locator('#question-form summary').click();await page.locator('[name="acceptedAnswers"]').fill('こめっと|彗星');await page.locator('#question-form button[type="submit"]').click();
@@ -47,7 +49,7 @@ const BASE = process.env.MEMORY_BEAT_TEST_URL || 'http://127.0.0.1:8765/memory-b
   await page.locator(`[data-deck="${db.id}"]`).click();await page.locator('[data-select]').first().check();await page.locator('[data-bulk="disable"]').click();data=await getData();assert.equal(data.questions.filter(q=>q.enabled===false).length,1);
   await page.locator('[data-edit]').first().click();await page.locator('#delete-question').click();await page.locator('#confirm-question-delete').click();data=await getData();assert.equal(data.questions.filter(q=>q.deckId===db.id).length,5);console.log('PASS disable and confirmed deletion');
   await go('settings'); const savedBefore=await getData();
-  const download=await Promise.all([page.waitForEvent('download'),page.locator('#export-backup').click()]);const backupPath='/workspace/scratch/aff112d372ee/qa-backup.json';await download[0].saveAs(backupPath); const backup=JSON.parse(fs.readFileSync(backupPath));assert.equal(backup.questions.length,11); assert(!('audio' in backup));
+  const download=await Promise.all([page.waitForEvent('download'),page.locator('#export-backup').click()]);const backupPath=path.join(OUTPUT,'qa-backup.json');await download[0].saveAs(backupPath); const backup=JSON.parse(fs.readFileSync(backupPath));assert.equal(backup.questions.length,11); assert(!('audio' in backup));
   await page.locator('#restore-file').setInputFiles({name:'broken.json',mimeType:'application/json',buffer:Buffer.from('{broken')});await page.waitForTimeout(300);assert.equal((await getData()).questions.length,savedBefore.questions.length);
   await page.locator('#restore-file').setInputFiles(backupPath);await page.locator('#restore-confirm').click();await page.waitForTimeout(300);assert.equal((await getData()).questions.length,savedBefore.questions.length);console.log('PASS backup round trip and invalid JSON data preservation');
   await page.locator('#recognition-mode').selectOption('remote');await page.locator('#consent-cancel').click();assert.notEqual((await getData()).settings[0].recognitionMode,'remote');await page.locator('#recognition-mode').selectOption('remote');await page.locator('#consent-remote').click();assert.equal((await getData()).settings[0].remoteConsent,true);await page.locator('#recognition-mode').selectOption('off');console.log('PASS explicit cloud-recognition consent');

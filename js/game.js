@@ -81,7 +81,7 @@ export class Game {
     const q = this.queue.shift(); if (!q) return this.finish();
     this.current = q; this.displayQuestion = this.settings.direction === 'reverse' ? { ...q, prompt: q.answer, answer: q.prompt, promptSpeech: q.answerSpeech, answerSpeech: q.promptSpeech, acceptedAnswers: [] } : q;
     this.baseline = this.ctx.state.stats[statKey(q)]; this.elapsed = 0; this.speechStart = null; this.recognized = ''; this.pendingIndex = null;
-    $('#game-prompt').textContent = this.displayQuestion.prompt; $('#falling').style.transform = 'translateY(0)'; $('#falling').hidden = false; $('#falling').className = 'falling';
+    $('#game-prompt').textContent = this.displayQuestion.prompt; $('#falling').style.transform = 'translateY(0)'; $('#falling').hidden = false; $('#falling').className = this.displayQuestion.prompt.length > 40 ? 'falling long' : 'falling';
     $('#answer-controls').hidden = false; $('#manual-controls').hidden = true; $('#feedback-controls').hidden = true;
     $('#recognized').textContent = '問題を読み上げています'; $('#typed-text').value = ''; $('#time-fill').style.transform = 'scaleX(1)';
     $('#question-index').textContent = `${this.session.answers.length + 1}問目`;
@@ -137,7 +137,7 @@ export class Game {
   updateFeedback() {
     const answer = this.session.answers[this.pendingIndex]; this.session.summary = summarize(this.session.answers);
     $('#score-value').textContent = this.session.summary.score; $('#combo-value').textContent = this.session.summary.combo;
-    $('#falling').className = `falling reward-${answer.grade.toLowerCase()}`; $('#answer-controls').hidden = true; $('#manual-controls').hidden = true; $('#feedback-controls').hidden = false;
+    $('#falling').className = `falling ${this.displayQuestion.prompt.length > 40 ? 'long' : ''} reward-${answer.grade.toLowerCase()}`; $('#answer-controls').hidden = true; $('#manual-controls').hidden = true; $('#feedback-controls').hidden = false;
     $('#grade-label').textContent = answer.grade; $('#grade-label').className = answer.grade.toLowerCase(); $('#response-time').textContent = seconds(answer.elapsed);
     $('#review-prompt').textContent = answer.promptSnapshot; $('#review-answer').textContent = answer.answerSnapshot;
     $('#review-note').textContent = answer.noteSnapshot; $('#review-recognition').textContent = answer.recognized ? `認識：${answer.recognized}${answer.recognitionCorrected ? '（正解に修正済み）' : ''}` : answer.source === 'timeout' ? '時間切れ' : answer.source === 'manual' ? '手動判定' : '文字で回答';
@@ -147,7 +147,7 @@ export class Game {
   }
   async persistPending() {
     if (this.saved || this.pendingIndex == null) return true;
-    if (this.saving) return false; this.saving = true; $('#next-question').disabled = true; $('#correct-recognition').disabled = true;
+    if (this.saving) return false; this.saving = true; $('#next-question').disabled = true; $('#correct-recognition').disabled = true; $('#save-status').textContent = '保存中…';
     const answer = this.session.answers[this.pendingIndex]; const stat = updateStat(this.baseline, answer, this.current);
     try {
       this.session.summary = summarize(this.session.answers); await write([{ store: 'stats', value: stat }, { store: 'sessions', value: this.session }]);

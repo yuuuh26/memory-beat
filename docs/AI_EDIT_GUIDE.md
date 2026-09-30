@@ -61,7 +61,7 @@
 
 ## 検証
 ```sh
-TZ=Asia/Tokyo node --test --test-isolation=none tests/core.test.js
+npm test
 python3 -m http.server 8765
 ```
 `tests/browser.cjs` は別途PlaywrightとChromiumがある環境で実行できます。公開URLでも実行可能です。

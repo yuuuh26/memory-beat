@@ -18,7 +18,7 @@ export function dialog(title, content) {
 export const closeDialog = () => $('#dialog').close();
 export function downloadJSON(data, name) {
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-  const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1500);
+  const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(url), 15000);
 }
 export async function copyText(text) {
   if (navigator.clipboard?.writeText) return navigator.clipboard.writeText(text);

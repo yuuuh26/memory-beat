@@ -21,7 +21,7 @@ test('各難易度のPERFECT/GREAT/GOOD/MISS境界', () => {
 test('問題統計と学習版を分離', () => {
   let s = updateStat(undefined, answer('PERFECT'), q); s = updateStat(s, answer('MISS', 4500), q);
   assert.equal(s.asked, 2); assert.equal(s.correct, 1); assert.equal(s.incorrect, 1); assert.equal(s.streak, 0); assert.equal(s.accuracy, .5); assert.equal(s.averageTime, 2700);
-  assert.equal(s.PERFECT, 1); assert.equal(s.MISS, 1); assert(s.mastery >= 0 && s.mastery <= 100);
+  assert.equal(updateStat(undefined, answer('MISS'), q).mastery, 0); assert.equal(s.PERFECT, 1); assert.equal(s.MISS, 1); assert(s.mastery >= 0 && s.mastery <= 100);
   assert.notEqual(statKey(q), statKey({ ...q, statVersion: 2 })); assert.equal(blankStat({ ...q, statVersion: 2 }).asked, 0);
 });
 test('コンボ・誤認識修正を含むセッション集計', () => {
@@ -48,7 +48,7 @@ test('日別集計はゲームを分離し、日本時間の深夜を保持', ()
 });
 test('TSV基本・拡張列と壊れた行のプレビュー検出', () => {
   const data = parseTSV('青\t星\tほし|スター\tメモ\n赤\t月\n\n'); assert.equal(data.rows.length, 2); assert.equal(data.errors.length, 0); assert.deepEqual(data.rows[0].acceptedAnswers, ['ほし', 'スター']);
-  assert.equal(parseTSV('列が一つだけ').errors.length, 1); assert.equal(parseTSV('\t答え').rows.length, 0);
+  assert.deepEqual(parseTSV('青\t星\tほし｜スター').rows[0].acceptedAnswers, ['ほし', 'スター']); assert.equal(parseTSV('列が一つだけ').errors.length, 1); assert.equal(parseTSV('\t答え').rows.length, 0);
 });
 const backup = () => ({ schemaVersion: 1, settings: {}, decks: [{ id: 'd1', name: '架空', color: '#a695ff' }], questions: [q], stats: [], sessions: [{ id: 's1', deckId: 'd1', deckNameSnapshot: '架空', startedAt: '2026-09-30T00:00:00Z', answers: [answer('GOOD')] }] });
 test('完全バックアップ検証：壊れたJSON・参照・ID・履歴を拒否', () => {

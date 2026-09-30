@@ -107,7 +107,7 @@ export function bindEditor(ctx) {
     } catch (error) { toast(error.message, true); }
   }));
   $$('[data-bulk]').forEach(el => bind(`[data-bulk="${el.dataset.bulk}"]`, 'click', async () => {
-    const qs = ctx.state.questions.filter(q => ctx.selection.has(q.id)); const action = el.dataset.bulk;
+    const qs = sorted(ctx.state.questions.filter(q => ctx.selection.has(q.id))); const action = el.dataset.bulk;
     if (action === 'delete') return confirmDelete(ctx, qs.map(q => q.id));
     if (action === 'disable') { await write(qs.map(q => ({ store: 'questions', value: { ...q, enabled: false, updatedAt: nowISO() } }))); ctx.selection.clear(); await ctx.reload(); ctx.render(); return; }
     dialog(action === 'move' ? '別ゲームへ移動' : '問題をコピー', `<p>${qs.length}件の問題</p><label>登録先<select id="target-deck">${options(ctx.state, ctx.state.settings.selectedDeckId)}</select></label><button id="bulk-apply" class="primary wide">${action === 'move' ? '移動する' : 'コピーする'}</button>`);

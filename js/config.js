@@ -1,5 +1,5 @@
 // 変更する値はここへ集約。時間はミリ秒。
-export const VERSION = '1.0.0';
+export const VERSION = '1.0.1';
 export const DB_NAME = 'yuu-memory-beat';
 export const DB_VERSION = 1;
 export const SCHEMA_VERSION = 1;

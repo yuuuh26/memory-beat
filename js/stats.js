@@ -4,11 +4,11 @@ export function overview(state, deckId) {
   const today = days.find(d => d.date === todayKey); const previous = [...days].reverse().find(d => d.date < todayKey);
   const questions = state.questions.filter(q => !deckId || q.deckId === deckId);
   const stats = questions.map(q => state.stats[statKey(q)]).filter(Boolean);
-  const total = summarize(state.sessions.filter(s => !deckId || s.deckId === deckId).flatMap(s => s.answers || []));
+  const total = summarize(state.sessions.filter(s => !deckId || s.deckId === deckId).flatMap(s => s.answers || []).sort((a, b) => a.at.localeCompare(b.at)));
   return { days, today, previous, total, mastery: questions.length ? Math.round(stats.reduce((n, s) => n + s.mastery, 0) / questions.length) : 0,
     questionCount: questions.filter(q => q.enabled !== false).length, disabledCount: questions.filter(q => q.enabled === false).length,
     change: today && previous ? (today.accuracy - previous.accuracy) * 100 : null,
-    streak: stats.length ? Math.max(...stats.map(s => s.streak)) : 0 };
+    streak: total.combo };
 }
 export function graphDays(days, period, now = new Date()) {
   if (!days.length) return [];

@@ -29,7 +29,7 @@ export function updateStat(old, answer, question) {
   if (answer.grade === 'MISS') { s.incorrect++; s.streak = 0; s.lastMiss = answer.at; }
   else { s.correct++; s.streak++; }
   s.accuracy = s.correct / s.asked;
-  s.mastery = Math.max(0, Math.min(100, Math.round(s.accuracy * 55 + Math.min(5, s.streak) * 5 + (1 - s.averageRatio) * 15 + Math.min(5, s.asked))));
+  s.mastery = Math.max(0, Math.min(100, Math.round(s.accuracy * (55 + (1 - s.averageRatio) * 15 + Math.min(5, s.asked)) + Math.min(5, s.streak) * 5)));
   return s;
 }
 export function weight(stat, now = Date.now()) {
@@ -80,7 +80,7 @@ export function parseTSV(text) {
     if (!line.trim()) return;
     const [prompt, answer, aliases = '', note = ''] = line.split('\t');
     if (!prompt?.trim() || !answer?.trim()) { errors.push(`${i + 1}行目：問題と答えをタブで区切ってください`); return; }
-    rows.push({ prompt: prompt.trim(), answer: answer.trim(), acceptedAnswers: aliases.split('|').map(s => s.trim()).filter(Boolean), note: note.trim() });
+    rows.push({ prompt: prompt.trim(), answer: answer.trim(), acceptedAnswers: aliases.split(/[|｜]/).map(s => s.trim()).filter(Boolean), note: note.trim() });
   });
   return { rows, errors };
 }

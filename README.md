@@ -31,7 +31,7 @@
 ## 開発
 ```sh
 python3 -m http.server 8765
-TZ=Asia/Tokyo node --test --test-isolation=none tests/core.test.js
+npm test
 ```
 ドキュメント：
 - [AI編集ガイド](docs/AI_EDIT_GUIDE.md)
