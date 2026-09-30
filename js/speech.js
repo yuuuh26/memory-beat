@@ -23,10 +23,10 @@ export class Speech {
     clearTimeout(this.speechTimer); globalThis.speechSynthesis?.cancel(); this.utterance = null;
     if (this.resolveSpeech) { const resolve = this.resolveSpeech; this.resolveSpeech = null; resolve(false); }
   }
-  async speak(text) {
+  async speak(text, lang = 'ja-JP') {
     this.cancelSpeech();
     if (!this.settings.speechEnabled || !globalThis.speechSynthesis || !text) return false;
-    // localService=trueの日本語音声のみ使用。会社情報を読み上げサービスへ送らない。
+    // localService=trueの指定言語音声のみ使用。教材を外部サービスへ送らない。
     let voices = speechSynthesis.getVoices();
     if (!voices.length) {
       await new Promise(resolve => {
@@ -34,11 +34,12 @@ export class Speech {
         speechSynthesis.addEventListener('voiceschanged', done, { once: true }); setTimeout(done, 500);
       }); voices = speechSynthesis.getVoices();
     }
-    const voice = voices.find(v => /^ja/i.test(v.lang) && v.localService);
+    const language = lang.split('-')[0].toLowerCase();
+    const voice = voices.find(v => v.localService && v.lang.toLowerCase() === lang.toLowerCase()) || voices.find(v => v.localService && v.lang.toLowerCase().split('-')[0] === language);
     if (!voice) return false;
     return new Promise(resolve => {
       this.resolveSpeech = resolve; const u = new SpeechSynthesisUtterance(text); this.utterance = u;
-      u.lang = 'ja-JP'; u.voice = voice; u.volume = this.settings.speechVolume; u.rate = 1;
+      u.lang = lang; u.voice = voice; u.volume = this.settings.speechVolume; u.rate = 1;
       const done = success => { clearTimeout(this.speechTimer); if (this.utterance !== u) return; this.utterance = null; this.resolveSpeech = null; resolve(success); };
       u.onend = () => done(true); u.onerror = () => done(false);
       this.speechTimer = setTimeout(() => { done(false); speechSynthesis.cancel(); }, GAME_TIMING.ttsTimeout);

@@ -56,3 +56,9 @@ test('グラフ：未学習日は0%ではなく欠測', () => {
   const days = graphDays([{ date: '2026-09-29', accuracy: .8, count: 2 }], 3, new Date(2026, 8, 30));
   assert.equal(days.length, 3); assert.equal(days[0].accuracy, null); assert.equal(days[1].accuracy, .8); assert.equal(days[2].accuracy, null);
 });
+test('英語教材は端末内英語音声を選び、日本語音声を流用しない',async()=>{
+  const ja={lang:'ja-JP',localService:true},en={lang:'en-US',localService:true};let utterance;
+  globalThis.speechSynthesis={cancel(){},getVoices:()=>[ja,en],speak(u){utterance=u;queueMicrotask(()=>u.onend());}};
+  assert.equal(await new Speech(settings).speak('allocate','en-US'),true);assert.equal(utterance.voice,en);assert.equal(utterance.lang,'en-US');
+  speechSynthesis.getVoices=()=>[ja];assert.equal(await new Speech(settings).speak('allocate','en-US'),false);
+});

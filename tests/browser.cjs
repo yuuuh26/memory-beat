@@ -12,8 +12,23 @@ const BASE = process.env.MEMORY_BEAT_TEST_URL || 'http://127.0.0.1:8765/memory-b
   const go = async screen => page.locator(`[data-page="${screen}"]`).click();
   const getData = () => page.evaluate(async()=>{ const {loadData}=await import('./js/db.js'); return loadData(); });
   const putSettings = async extra => page.evaluate(async values=>{const {all,put}=await import('./js/db.js');const current=(await all('settings')).find(s=>s.id==='main')||{};await put('settings',{...current,...values,id:'main'});},extra);
-  await page.goto(BASE); await page.locator('#sample-create').click(); await page.locator('#start-game').waitFor();
-  await putSettings({speechEnabled:false,recognitionMode:'off',bgmVolume:0,seVolume:0}); await page.reload(); await page.locator('#start-game').waitFor();
+  await page.goto(BASE); await page.locator('#start-game').waitFor();
+  assert.equal((await getData()).questions.length,500);
+  await putSettings({speechEnabled:false,recognitionMode:'off',answerMode:'choices',bgmVolume:0,seVolume:0,difficulty:'EASY'}); await page.reload();
+  const toeicAnswers = Object.fromEntries((await getData()).questions.map(q=>[q.prompt,q.answer]));
+  await page.locator('#start-game').click();
+  for(let n=1;n<=10;n++) {
+    await page.locator('#question-index').filter({hasText:`${n}問目`}).waitFor();
+    await page.waitForFunction(()=>document.querySelectorAll('[data-choice]:not(:disabled)').length===4);
+    assert.equal(await page.locator('#retry-mic').isVisible(),false);
+    const prompt=await page.locator('#game-prompt').textContent();
+    await page.locator('[data-choice]').filter({hasText:toeicAnswers[prompt]}).click();
+    await page.locator('#save-status').filter({hasText:'保存済み'}).waitFor(); await page.locator('#next-question').click();
+  }
+  await page.locator('#result-home').waitFor();assert.equal((await getData()).sessions[0].summary.accuracy,1);console.log('PASS TOEIC 500 words, four-choice game and no microphone');
+  await page.locator('#result-home').click();await go('editor');await page.locator('#edit-deck').click();await page.locator('#delete-deck').click();await page.locator('#confirm-delete-deck').click();
+  await page.locator('#sample-create').click(); await page.locator('#start-game').waitFor();
+  await putSettings({speechEnabled:false,recognitionMode:'off',answerMode:'recall',difficulty:'NORMAL',bgmVolume:0,seVolume:0}); await page.reload(); await page.locator('#start-game').waitFor();
   await page.screenshot({path:path.join(OUTPUT,'memory-beat-home.png'),fullPage:true});
   assert.equal((await getData()).questions.length,6); console.log('PASS sample creation and reload');
   const map = Object.fromEntries((await getData()).questions.map(q=>[q.prompt,q.answer]));
@@ -31,7 +46,7 @@ const BASE = process.env.MEMORY_BEAT_TEST_URL || 'http://127.0.0.1:8765/memory-b
     await page.locator('#next-question').click();
   }
   await page.locator('#result-home').waitFor();
-  let data=await getData();let s=data.sessions[0];assert.equal(s.answers.length,6); assert.equal(s.summary.PERFECT,2); assert.equal(s.summary.GREAT,1);assert.equal(s.summary.GOOD,1);assert.equal(s.summary.MISS,2);assert.equal(s.status,'completed');console.log('PASS grading, manual answer, timeout, pause, combo, session persistence');
+  let data=await getData();let s=data.sessions.find(s=>s.deckNameSnapshot==='サンプル');assert.equal(s.answers.length,6); assert.equal(s.summary.PERFECT,2); assert.equal(s.summary.GREAT,1);assert.equal(s.summary.GOOD,1);assert.equal(s.summary.MISS,2);assert.equal(s.status,'completed');console.log('PASS grading, manual answer, timeout, pause, combo, session persistence');
   await page.locator('#result-home').click();await go('stats'); await page.screenshot({path:path.join(OUTPUT,'memory-beat-stats.png'),fullPage:true});
   assert((await page.locator('#main').textContent()).includes('66.7')||(await page.locator('#main').textContent()).includes('67%')); await go('history'); await page.locator('[data-session]').first().click(); assert.equal(await page.locator('.answer-item').count(),6); await page.locator('#dialog-close').click();console.log('PASS daily stats and session snapshots');
   await page.locator('#new-deck').click();await page.locator('#deck-form [name="name"]').fill('検証デッキA');await page.locator('#deck-form button[type="submit"]').click();await go('editor');

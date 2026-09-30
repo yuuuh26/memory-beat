@@ -8,6 +8,8 @@ import { sanitizeSettings, exportBackup, exportAI, previewRestore } from './back
 import { recognitionState, installLocalRecognition } from './speech.js';
 import { AudioEngine } from './audio.js';
 import { Game } from './game.js';
+import { ensureStarterPacks } from './packs.js';
+import { activateUpdate } from './pwa.js';
 import { $, $$, escapeHTML as esc, sorted, uuid, nowISO, toast, bind, dialog, closeDialog, percent, seconds, dateLabel, copyText, handleError } from './utils.js';
 const state = { settings: { ...DEFAULT_SETTINGS }, decks: [], questions: [], stats: {}, sessions: [] };
 let page = 'home', period = '7', scopeAll = false, game = null, installPrompt = null, swRegistration = null, previewAudio = null;
@@ -57,17 +59,20 @@ function home(d) {
     ${!o.questionCount ? `<div class="card empty"><h2>${totalQuestions ? '出題できる問題がありません' : '最初の問題を追加しよう'}</h2><p class="muted">${totalQuestions ? '問題管理から「出題する」を有効にしてね。' : '問題と答えだけで登録できるよ。'}</p><button id="home-add" class="primary wide">＋ 問題を追加</button><button id="home-bulk" class="secondary wide">まとめて追加</button></div>` : `<div class="card play-card"><div class="row between"><span class="eyebrow">PLAY SETUP</span><span class="pill">${o.questionCount} CARDS</span></div><div class="segmented"><button data-mode="count" class="${s.sessionMode === 'count' ? 'selected' : ''}">問題数</button><button data-mode="time" class="${s.sessionMode === 'time' ? 'selected' : ''}">時間</button></div>
       <div class="chips">${(s.sessionMode === 'count' ? QUESTION_COUNTS : [...new Set([...TIME_OPTIONS, ...s.favoriteMinutes])].sort((a, b) => a - b)).map(n => `<button data-target="${n}" class="${n === (s.sessionMode === 'count' ? s.count : s.minutes) ? 'selected' : ''}">${n}${s.sessionMode === 'count' ? '問' : '分'}</button>`).join('')}${s.sessionMode === 'time' ? '<button id="favorite-time" aria-label="お気に入り時間を追加">＋</button>' : ''}</div>
       <button class="start-button" id="start-game">START <span>▸</span></button><div class="play-meta"><span>${s.sessionMode === 'count' ? `${Math.min(s.count, o.questionCount)}問 · 重複なし` : `${s.minutes}分 · 苦手を優先`}</span><span id="home-recognition">音声設定を確認中…</span></div>
+      <label class="answer-mode-label">回答方法<select id="home-answer-mode">${answerModeOptions()}</select></label>
       <div class="grid2 setup-fields"><label>難易度<select id="home-difficulty">${Object.entries(DIFFICULTIES).map(([key, ms]) => `<option value="${key}" ${s.difficulty === key ? 'selected' : ''}>${key} · ${ms / 1000}秒</option>`).join('')}</select></label><label>出題方向<select id="direction"><option value="forward" ${s.direction === 'forward' ? 'selected' : ''}>問題 → 答え</option><option value="reverse" ${s.direction === 'reverse' ? 'selected' : ''}>答え → 問題</option></select></label></div>
       <div class="track-select"><span class="track-symbol">♫</span><label>BGM<select id="home-track">${trackOptions()}</select></label><button id="home-bgm-preview" class="icon-button" aria-label="BGM試聴">▷</button></div>
 </div>`}
     <div class="card mini-trend"><div class="row between"><h3>最近の正答率</h3><button id="home-stats" class="text-button">STATS</button></div>${lineChart(graphDays(o.days, 7))}<div class="row between muted"><span>連続正解 ${o.streak}</span><span>平均 ${seconds(o.today?.averageTime ?? o.total.averageTime)}</span></div></div></section>`;
 }
 function trackOptions() { return TRACKS.map(t => `<option value="${t.id}" ${state.settings.bgmTrack === t.id ? 'selected' : ''}>${t.name} · ${t.bpm} BPM</option>`).join('') + `<option value="custom" ${state.settings.bgmTrack === 'custom' ? 'selected' : ''}>自分の音楽</option>`; }
+function answerModeOptions() { return `<option value="choices" ${state.settings.answerMode === 'choices' ? 'selected' : ''}>選択肢をタップ</option><option value="recall" ${state.settings.answerMode === 'recall' ? 'selected' : ''}>思い出して回答（文字・手動・音声）</option>`; }
 function bindHome() {
   bind('#home-edit-deck', 'click', () => openDeckEditor(ctx, deck())); bind('#home-add', 'click', () => openQuestionEditor(ctx)); bind('#home-bulk', 'click', () => bulkAdd(ctx));
   $$('[data-mode]').forEach(el => bind(`[data-mode="${el.dataset.mode}"]`, 'click', async () => { await setting({ sessionMode: el.dataset.mode }); render(); }));
   $$('[data-target]').forEach(el => bind(`[data-target="${el.dataset.target}"]`, 'click', async () => { await setting({ [state.settings.sessionMode === 'count' ? 'count' : 'minutes']: Number(el.dataset.target) }); render(); }));
   bind('#home-difficulty', 'change', e => setting({ difficulty: e.target.value })); bind('#direction', 'change', e => setting({ direction: e.target.value }));
+  bind('#home-answer-mode', 'change', async e => { await setting({ answerMode: e.target.value }); render(); });
   bind('#home-track', 'change', async e => { previewAudio?.stop(); await setting({ bgmTrack: e.target.value }); });
   bind('#home-bgm-preview', 'click', async e => { if (previewAudio?.timer || previewAudio?.custom) { previewAudio.stop(); e.currentTarget.textContent = '▷'; return; } previewAudio = new AudioEngine(state.settings); await previewAudio.start(); e.currentTarget.textContent = '■'; });
   bind('#home-stats', 'click', () => navigate('stats'));
@@ -82,7 +87,8 @@ function bindHome() {
     const newGame = new Game(ctx, deck(), questions);
     try { await requestPersistence(); game = newGame; await game.start(); } catch (error) { newGame.ended = true; newGame.speech.stop(); newGame.audio.stop(); document.body.classList.remove('playing'); game = null; render(); throw error; }
   });
-  recognitionState(state.settings.recognitionMode === 'remote' && !state.settings.remoteConsent ? 'off' : state.settings.recognitionMode).then(s => { if (page === 'home' && $('#home-recognition')) $('#home-recognition').textContent = s.mode === 'manual' ? '手動判定' : s.mode === 'local' ? '端末内音声' : '通常音声'; });
+  if (state.settings.answerMode === 'choices') $('#home-recognition').textContent = '選択肢をタップ';
+  else recognitionState(state.settings.recognitionMode === 'remote' && !state.settings.remoteConsent ? 'off' : state.settings.recognitionMode).then(s => { if (page === 'home' && $('#home-recognition')) $('#home-recognition').textContent = s.mode === 'manual' ? '手動判定' : s.mode === 'local' ? '端末内音声' : '通常音声'; });
 }
 function statsPage() {
   const selected = scopeAll ? null : state.settings.selectedDeckId, o = overview(state, selected);
@@ -108,7 +114,7 @@ function bindHistory() {
   $$('[data-session]').forEach(el => bind(`[data-session="${el.dataset.session}"]`, 'click', () => sessionDetail(state.sessions.find(s => s.id === el.dataset.session))));
 }
 function answerList(session) {
-  return session.answers.map(a => `<div class="answer-item"><span class="grade-pill ${a.grade.toLowerCase()}">${a.grade}</span><div><strong>${esc(a.promptSnapshot)}</strong><span>${esc(a.answerSnapshot)}</span><small>${seconds(a.elapsed)} · ${a.source === 'manual' ? '手動' : a.source === 'typed' ? '文字' : a.source === 'timeout' ? '時間切れ' : '音声'}${a.recognitionCorrected ? ' · 認識ミス修正' : ''}</small>${a.recognized ? `<small>認識：${esc(a.recognized)}</small>` : ''}</div></div>`).join('');
+  return session.answers.map(a => `<div class="answer-item"><span class="grade-pill ${a.grade.toLowerCase()}">${a.grade}</span><div><strong>${esc(a.promptSnapshot)}</strong><span>${esc(a.answerSnapshot)}</span><small>${seconds(a.elapsed)} · ${a.source === 'choice' ? '選択肢' : a.source === 'manual' ? '手動' : a.source === 'typed' ? '文字' : a.source === 'timeout' ? '時間切れ' : '音声'}${a.recognitionCorrected ? ' · 認識ミス修正' : ''}</small>${a.recognized ? `<small>${a.source === 'choice' ? '選んだ答え' : '認識'}：${esc(a.recognized)}</small>` : ''}</div></div>`).join('');
 }
 function sessionDetail(s) { dialog(s.deckNameSnapshot, `<p class="muted">${dateLabel(s.startedAt)} · ${esc(s.difficulty)}</p>${answerList(s)}`); }
 function showResult(session) {
@@ -119,13 +125,13 @@ function showResult(session) {
 function settingsPage() {
   const s = state.settings;
   return `<div class="section-head"><div><span class="eyebrow">SETTINGS</span><h1>設定</h1></div></div>
-    <div class="card"><h3>音声・サウンド</h3><label class="toggle">問題の読み上げ<input id="speechEnabled" type="checkbox" ${s.speechEnabled ? 'checked' : ''}></label><p class="muted">端末内の日本語音声を使用します。利用できない場合は文字で出題します。</p>
+    <div class="card"><h3>音声・サウンド</h3><label class="toggle">問題の読み上げ<input id="speechEnabled" type="checkbox" ${s.speechEnabled ? 'checked' : ''}></label><p class="muted">問題に合わせて端末内の日本語・英語音声を使用します。利用できない場合は文字で出題します。</p>
       ${[['speechVolume', '発音音量'], ['bgmVolume', 'BGM音量'], ['seVolume', '効果音音量']].map(([key, label]) => `<label class="volume-label">${label}<output id="${key}-value">${Math.round(s[key] * 100)}%</output><input id="${key}" type="range" min="0" max="1" step="0.01" value="${s[key]}"></label>`).join('')}
       <label>BGM<select id="settings-track">${trackOptions()}</select></label><button id="bgm-preview" class="secondary wide">BGMを試聴</button>
       <label class="file-picker">自分の音楽を読み込む<input id="audio-import" type="file" accept="audio/*"></label><p class="muted" id="audio-name">音楽ファイルを確認中…</p><button id="audio-remove" class="text-button">自分の音楽を削除</button></div>
     <div class="card"><h3>音声回答</h3><label>認識方法<select id="recognition-mode"><option value="local" ${s.recognitionMode === 'local' ? 'selected' : ''}>端末内認識を優先</option><option value="remote" ${s.recognitionMode === 'remote' ? 'selected' : ''}>通常の音声認識を使用</option><option value="off" ${s.recognitionMode === 'off' ? 'selected' : ''}>音声認識を使用しない</option></select></label>
       <p class="notice">通常認識では、ブラウザーによって音声が認識サービスへ送信される場合があります。会社の機密情報は、端末内認識または手動判定で扱ってください。</p><p id="local-status" class="muted">端末内認識の状態を確認中…</p><button id="local-install" class="secondary wide" hidden>日本語認識パックをダウンロード</button><label class="toggle">「さん」の有無を許容<input id="allowSan" type="checkbox" ${s.allowSan ? 'checked' : ''}></label><p class="muted">誤認識する言葉は「別解」に登録すると判定しやすくなるよ。</p></div>
-    <div class="card"><h3>ゲーム</h3><label>難易度<select id="settings-difficulty">${Object.entries(DIFFICULTIES).map(([key, ms]) => `<option value="${key}" ${s.difficulty === key ? 'selected' : ''}>${key} · ${ms / 1000}秒</option>`).join('')}</select></label><label class="toggle">振動<input id="vibration" type="checkbox" ${s.vibration ? 'checked' : ''}></label><label class="toggle">正解エフェクト<input id="effects-enabled" type="checkbox" ${s.effects ? 'checked' : ''}></label><p class="muted">端末の「動きを減らす」設定も反映します。</p></div>
+    <div class="card"><h3>ゲーム</h3><label>回答方法<select id="settings-answer-mode">${answerModeOptions()}</select></label><p class="muted">選択式ではマイクを使いません。選択肢は個別指定、または同じゲームの答えから作成します。</p><label>難易度<select id="settings-difficulty">${Object.entries(DIFFICULTIES).map(([key, ms]) => `<option value="${key}" ${s.difficulty === key ? 'selected' : ''}>${key} · ${ms / 1000}秒</option>`).join('')}</select></label><label class="toggle">振動<input id="vibration" type="checkbox" ${s.vibration ? 'checked' : ''}></label><label class="toggle">正解エフェクト<input id="effects-enabled" type="checkbox" ${s.effects ? 'checked' : ''}></label><p class="muted">端末の「動きを減らす」設定も反映します。</p></div>
     <div class="card"><h3>データ保存</h3><p id="storage-state" class="muted">保存状態を確認中…</p><button id="persist" class="secondary wide">永続保存を再申請</button><button id="export-backup" class="primary wide">完全バックアップを書き出す</button><label class="file-picker">バックアップから復元<input id="restore-file" type="file" accept="application/json,.json"></label><button id="export-ai" class="secondary wide">AI編集用JSONを書き出す</button><p class="muted">問題と履歴はこのブラウザーに保存されます。別端末への移動はバックアップを使ってね。音楽ファイルはバックアップに含まれません。</p></div>
     <div class="card"><h3>ゲームの並び順</h3>${sorted(state.decks).map(d => `<div class="deck-order"><span>${esc(d.icon || '▣')} ${esc(d.name)}</span><button data-deck-up="${esc(d.id)}" class="icon-button" aria-label="${esc(d.name)}を上へ">↑</button><button data-deck-down="${esc(d.id)}" class="icon-button" aria-label="${esc(d.name)}を下へ">↓</button></div>`).join('') || '<p class="muted">まだゲームがありません。</p>'}</div>
     <div class="card"><h3>アプリ情報</h3><p>MEMORY BEAT v${VERSION}</p><label>アプリのアドレス</label><div class="url-row"><code>${esc(new URL('./', location.href).href)}</code><button id="copy-url" class="secondary">コピー</button></div><button id="install-app" class="secondary wide">ホーム画面に追加</button><button id="update-app" class="text-button wide">アプリの更新を確認</button><p class="muted" id="offline-status">アプリのキャッシュを確認中…</p></div>
@@ -139,6 +145,7 @@ function bindSettings() {
     bind(`#${key}`, 'change', async e => { previewAudio?.stop(); await setting({ [key]: Number(e.target.value) }); });
   }
   bind('#settings-difficulty', 'change', e => setting({ difficulty: e.target.value }));
+  bind('#settings-answer-mode', 'change', e => setting({ answerMode: e.target.value }));
   bind('#settings-track', 'change', async e => { previewAudio?.stop(); await setting({ bgmTrack: e.target.value }); });
   bind('#bgm-preview', 'click', async e => { if (previewAudio?.timer || previewAudio?.custom) { previewAudio.stop(); e.currentTarget.textContent = 'BGMを試聴'; return; } previewAudio = new AudioEngine(state.settings); await previewAudio.start(); e.currentTarget.textContent = '試聴を停止'; });
   bind('#audio-import', 'change', async e => {
@@ -158,8 +165,12 @@ function bindSettings() {
   bind('#persist', 'click', async () => { const result = await requestPersistence(); toast(result ? '永続保存が許可されたよ' : '今回は許可されませんでした。バックアップも保存してね'); render(); });
   bind('#export-backup', 'click', () => exportBackup(state)); bind('#export-ai', 'click', () => exportAI(state)); bind('#restore-file', 'change', e => previewRestore(ctx, e.target.files[0]));
   bind('#copy-url', 'click', async e => { await copyText(new URL('./', location.href).href); e.currentTarget.textContent = 'コピー済み ✓'; setTimeout(() => { if ($('#copy-url')) $('#copy-url').textContent = 'コピー'; }, 2500); });
-  bind('#install-app', 'click', async () => { if (installPrompt) { await installPrompt.prompt(); installPrompt = null; } else dialog('ホーム画面に追加', '<p>Android Chromeの右上メニューから「ホーム画面に追加」または「アプリをインストール」を選んでね。</p>'); });
-  bind('#update-app', 'click', async () => { if (!swRegistration) { toast('キャッシュの準備にはHTTPSでの公開が必要です', true); return; } await swRegistration.update(); if (swRegistration.waiting) { swRegistration.waiting.postMessage({ type: 'SKIP_WAITING' }); navigator.serviceWorker.addEventListener('controllerchange', () => location.reload(), { once: true }); } else toast('更新を確認したよ'); });
+  bind('#install-app', 'click', async () => {
+    if (window.matchMedia('(display-mode: standalone)').matches) { dialog('ホーム画面から起動中', '<p>今はアプリとして開いています。Chromeから追加したい場合は、アプリのアドレスをコピーしてChromeで開いてね。</p>'); return; }
+    if (installPrompt) { const prompt = installPrompt; installPrompt = null; await prompt.prompt(); await prompt.userChoice; }
+    else dialog('ホーム画面に追加', '<p>Android Chromeの ⋮ メニューから「ホーム画面に追加」を選んでね。</p><p>v1.1.0でMEMORY BEAT専用のアプリ識別設定へ修正しました。「インストール済み」で起動できない場合は、このページを更新してから再度試してね。すぐ使いたい場合は「ショートカットを作成」も選べます。</p><p class="muted">ブラウザーのデータ削除は不要です。</p>');
+  });
+  bind('#update-app', 'click', async () => { if (!swRegistration) { toast('キャッシュの準備にはHTTPSでの公開が必要です', true); return; } if (await activateUpdate(swRegistration)) location.reload(); else toast('最新版です'); });
   for (const direction of ['up', 'down']) $$(`[data-deck-${direction}]`).forEach(el => bind(`[data-deck-${direction}="${el.dataset[direction === 'up' ? 'deckUp' : 'deckDown']}"]`, 'click', () => reorderDeck(ctx, el.dataset[direction === 'up' ? 'deckUp' : 'deckDown'], direction === 'up' ? -1 : 1)));
   bind('#clear-data', 'click', () => {
     dialog('削除前にバックアップ', '<p>すべてのゲーム・問題・学習履歴・音楽を削除します。先にバックアップを保存してください。</p><button id="clear-backup" class="primary wide">バックアップを書き出す</button><button id="clear-stage2" class="danger wide">削除の最終確認へ</button>');
@@ -185,9 +196,14 @@ function navigate(nextPage) { if (document.body.classList.contains('playing')) r
 bind('#dialog-close', 'click', closeDialog); bind('#brand-home', 'click', () => navigate('home'));
 $$('[data-page]').forEach(el => bind(`[data-page="${el.dataset.page}"]`, 'click', () => navigate(el.dataset.page)));
 window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); installPrompt = e; });
+window.addEventListener('appinstalled', () => { installPrompt = null; toast('ホーム画面に追加したよ'); });
 window.addEventListener('keydown', e => { if (e.key === 'Escape' && game && !game.ended) { e.preventDefault(); game.paused ? game.resume() : game.pause(); } });
 async function init() {
-  try { await reload(); render(); }
+  try {
+    await reload();
+    try { if (await ensureStarterPacks(state)) await reload(); } catch (error) { toast(error.message, true); }
+    $('.version').textContent = `v${VERSION}`; render();
+  }
   catch (error) { $('#main').innerHTML = `<div class="empty"><h1>保存領域を開けませんでした</h1><p>${esc(error.message)}</p><button id="retry-init" class="primary">再試行</button></div>`; bind('#retry-init', 'click', init); }
   if ('serviceWorker' in navigator) {
     try { swRegistration = await navigator.serviceWorker.register('./sw.js'); swRegistration.addEventListener('updatefound', () => { const worker = swRegistration.installing; worker.addEventListener('statechange', () => { if (worker.state === 'installed' && navigator.serviceWorker.controller) toast('新しい版があります。設定から更新できます'); }); }); }

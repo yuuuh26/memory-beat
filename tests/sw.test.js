@@ -13,7 +13,7 @@ function harness(offline=false) {
   return {handlers,assets,removed,index,wait,request};
 }
 test('PWA installはHTML・全モジュール・アイコンをキャッシュ',async()=>{
- const h=harness();await h.wait('install');for(const p of ['index.html','styles.css','manifest.webmanifest','js/game.js','js/db.js','js/backup.js','icons/icon-512.png'])assert(h.assets.includes(p));
+ const h=harness();await h.wait('install');for(const p of ['index.html','styles.css','manifest.webmanifest','js/game.js','js/db.js','js/backup.js','js/packs.js','data/toeic.json','js/pwa.js','update.html','icons/icon-512.png'])assert(h.assets.includes(p));
  for(const p of h.assets.filter(p=>p!=='.'))assert(fs.existsSync(new URL('../'+p,import.meta.url)),`missing ${p}`);
 });
 test('PWA更新は他アプリのキャッシュを保持',async()=>{const h=harness();await h.wait('activate');assert.deepEqual(h.removed,['yuu-memory-beat-app-old']);});

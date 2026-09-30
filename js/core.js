@@ -1,4 +1,4 @@
-import { DIFFICULTIES, JUDGMENT, POINTS } from './config.js';
+import { DIFFICULTIES, JUDGMENT, POINTS, CHOICE_COUNT } from './config.js';
 // DOM / IndexedDB / 音声APIに依存しない学習ロジック。
 export function normalize(text, allowSan = false) {
   let s = String(text ?? '').normalize('NFKC').toLocaleLowerCase('ja').replace(/[\s\p{P}\p{S}]/gu, '');
@@ -8,6 +8,29 @@ export function normalize(text, allowSan = false) {
 export function matches(text, question, allowSan = true) {
   const s = normalize(text, allowSan);
   return !!s && [question.answer, ...(question.acceptedAnswers || [])].some(a => normalize(a, allowSan) === s);
+}
+export function shuffle(items, rng = Math.random) {
+  const result = [...items];
+  for (let i = result.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1)); [result[i], result[j]] = [result[j], result[i]];
+  }
+  return result;
+}
+// 明示した選択肢を優先。ない場合は同じゲームの答えから誤答を作る。
+// 別解・同義語・同じ意味は誤答にしない。人名の曖昧な一致は使わない。
+export function choicesFor(question, questions, rng = Math.random) {
+  const seen = new Set([question.answer, ...(question.acceptedAnswers || []), ...(question.excludeChoices || [])].map(a => normalize(a)));
+  const explicit = Array.isArray(question.choices) && question.choices.length > 0;
+  const pool = explicit ? shuffle(question.choices, rng) : shuffle(questions.filter(q => q.id !== question.id && q.enabled !== false && (!question.choiceGroup || q.choiceGroup === question.choiceGroup)), rng)
+    .sort((a, b) => Number(b.choiceCategory === question.choiceCategory) - Number(a.choiceCategory === question.choiceCategory)).map(q => q.answer);
+  const result = [question.answer];
+  for (const candidate of pool) {
+    if (typeof candidate !== 'string' || !candidate.trim()) continue;
+    const key = normalize(candidate); if (!key || seen.has(key)) continue;
+    seen.add(key); result.push(candidate);
+    if (result.length === CHOICE_COUNT) break;
+  }
+  return shuffle(result, rng);
 }
 export function judge(correct, elapsed, limit = DIFFICULTIES.NORMAL) {
   if (!correct || !Number.isFinite(elapsed) || elapsed >= limit || elapsed < 0) return 'MISS';

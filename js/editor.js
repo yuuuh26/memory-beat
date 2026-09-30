@@ -34,6 +34,7 @@ export function openQuestionEditor(ctx, existing = null) {
     <label>答え<input name="answer" required maxlength="1000" value="${esc(existing?.answer)}" placeholder="覚えたい答え"></label>
     <details ${existing ? 'open' : ''}><summary>詳細設定</summary>
       <label>別解 <small>｜または改行で区切る</small><textarea name="acceptedAnswers" placeholder="漢字やひらがなの別表記">${esc((existing?.acceptedAnswers || []).join('\n'))}</textarea></label>
+      <label>選択肢 <small>1行に1つ。空欄なら同じゲームの答えから作成。正解は自動で追加。</small><textarea name="choices" placeholder="選択肢を個別に指定したい場合だけ入力">${esc((existing?.choices || []).join('\n'))}</textarea></label>
       <div class="grid2"><label>問題の読み上げ<input name="promptSpeech" value="${esc(existing?.promptSpeech)}" placeholder="空欄なら問題と同じ"></label><label>答えの読み上げ<input name="answerSpeech" value="${esc(existing?.answerSpeech)}" placeholder="空欄なら答えと同じ"></label></div>
       <label>メモ<textarea name="note" maxlength="10000">${esc(existing?.note)}</textarea></label>
       <label>タグ <small>カンマで区切る</small><input name="tags" value="${esc((existing?.tags || []).join(', '))}"></label>
@@ -44,6 +45,7 @@ export function openQuestionEditor(ctx, existing = null) {
     e.preventDefault(); const f = new FormData(e.currentTarget);
     const values = { prompt: f.get('prompt').trim(), answer: f.get('answer').trim(), acceptedAnswers: f.get('acceptedAnswers').split(/[|｜\n]/).map(s => s.trim()).filter(Boolean), promptSpeech: f.get('promptSpeech').trim(), answerSpeech: f.get('answerSpeech').trim(), note: f.get('note').trim(), tags: f.get('tags').split(/[,、]/).map(s => s.trim()).filter(Boolean), deckId: f.get('deckId'), enabled: f.has('enabled'), updatedAt: nowISO() };
     if (!values.prompt || !values.answer) return;
+    values.choices = f.get('choices').split(/\r?\n/).map(s => s.trim()).filter(Boolean);
     const q = existing ? { ...existing, ...values } : questionRecord(values.deckId, values, ctx.state.questions.length * 10);
     const save = async reset => {
       if (reset) q.statVersion = (existing.statVersion || 1) + 1;

@@ -18,6 +18,7 @@ export function sanitizeSettings(input = {}) {
   for (const key of ['speechEnabled', 'vibration', 'effects', 'allowSan', 'remoteConsent']) if (typeof input[key] === 'boolean') s[key] = input[key];
   for (const key of ['speechVolume', 'bgmVolume', 'seVolume']) if (Number.isFinite(input[key]) && input[key] >= 0 && input[key] <= 1) s[key] = input[key];
   if (['local', 'remote', 'off'].includes(input.recognitionMode)) s.recognitionMode = input.recognitionMode;
+  if (['choices', 'recall'].includes(input.answerMode)) s.answerMode = input.answerMode;
   if (Object.hasOwn(DIFFICULTIES, input.difficulty)) s.difficulty = input.difficulty;
   if ([...TRACKS.map(t => t.id), 'custom'].includes(input.bgmTrack)) s.bgmTrack = input.bgmTrack;
   if (Array.isArray(input.favoriteMinutes)) s.favoriteMinutes = [...new Set(input.favoriteMinutes.filter(n => Number.isInteger(n) && n > 0 && n <= 120))];
@@ -35,7 +36,8 @@ export function validateBackup(data) {
   for (const d of data.decks) if (typeof d.name !== 'string' || !d.name.trim() || d.name.length > 80 || (d.color && !/^#[0-9a-f]{6}$/i.test(d.color))) fail('ゲームの名前・色が不正です');
   for (const q of data.questions) {
     if (!decks.has(q.deckId) || typeof q.prompt !== 'string' || !q.prompt.trim() || q.prompt.length > 1000 || typeof q.answer !== 'string' || !q.answer.trim() || q.answer.length > 1000) fail('問題・答え・所属ゲームが不正です');
-    for (const key of ['acceptedAnswers', 'tags']) if (q[key] != null && (!Array.isArray(q[key]) || q[key].some(v => typeof v !== 'string'))) fail(`${key}が不正です`);
+    for (const key of ['acceptedAnswers', 'tags', 'choices', 'excludeChoices']) if (q[key] != null && (!Array.isArray(q[key]) || q[key].some(v => typeof v !== 'string' || v.length > 1000))) fail(`${key}が不正です`);
+    for (const key of ['promptLang', 'answerLang']) if (q[key] != null && (typeof q[key] !== 'string' || !/^[a-z]{2,3}(-[a-zA-Z]{2,8})?$/.test(q[key]))) fail(`${key}が不正です`);
     if (q.statVersion != null && (!Number.isInteger(q.statVersion) || q.statVersion < 1)) fail('問題の学習版が不正です');
   }
   for (const s of data.stats) {
@@ -59,7 +61,7 @@ export function exportBackup(state) { downloadJSON(fullBackup(state), `memory-be
 export function exportAI(state) {
   dialog('AI編集用に書き出す', `<p class="notice">会社情報・個人名を外部AIに渡す可能性があります。共有してよい内容か確認してね。アプリから自動送信はしません。</p><p class="muted">問題・答え・別解・読み上げ・メモ・タグを含めます。成績・設定・学習履歴は含めません。</p><button class="primary wide" id="ai-download">確認してJSONを書き出す</button>`);
   bind('#ai-download', 'click', () => {
-    const data = { format: 'memory-beat-ai-edit', schemaVersion: SCHEMA_VERSION, exportedAt: nowISO(), decks: state.decks.map(({ id, name, description }) => ({ id, name, description })), questions: state.questions.map(({ id, deckId, prompt, answer, acceptedAnswers, promptSpeech, answerSpeech, note, tags, enabled }) => ({ id, deckId, prompt, answer, acceptedAnswers, promptSpeech, answerSpeech, note, tags, enabled })) };
+    const data = { format: 'memory-beat-ai-edit', schemaVersion: SCHEMA_VERSION, exportedAt: nowISO(), decks: state.decks.map(({ id, name, description }) => ({ id, name, description })), questions: state.questions.map(({ id, deckId, prompt, answer, acceptedAnswers, promptSpeech, answerSpeech, promptLang, answerLang, choices, excludeChoices, choiceGroup, choiceCategory, note, tags, enabled }) => ({ id, deckId, prompt, answer, acceptedAnswers, promptSpeech, answerSpeech, promptLang, answerLang, choices, excludeChoices, choiceGroup, choiceCategory, note, tags, enabled })) };
     downloadJSON(data, 'memory-beat-ai-edit.json'); closeDialog();
   });
 }

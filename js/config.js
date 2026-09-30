@@ -1,5 +1,5 @@
 // 変更する値はここへ集約。時間はミリ秒。
-export const VERSION = '1.0.1';
+export const VERSION = '1.1.0';
 export const DB_NAME = 'yuu-memory-beat';
 export const DB_VERSION = 1;
 export const SCHEMA_VERSION = 1;
@@ -11,9 +11,10 @@ export const TIME_OPTIONS = [2, 3, 5, 10];
 export const EFFECTS = { maxParticles: 28, counts: { PERFECT: 28, GREAT: 20, GOOD: 14 }, duration: 750 };
 export const COMBO_STEPS = [3, 5, 10, 20, 30];
 export const GAME_TIMING = { recognitionGrace: 1600, ttsTimeout: 18000 };
+export const CHOICE_COUNT = 4;
 export const DEFAULT_SETTINGS = {
   id: 'main', speechEnabled: true, speechVolume: .9, bgmVolume: .22, seVolume: .55,
-  recognitionMode: 'local', remoteConsent: false, allowSan: true, difficulty: 'NORMAL',
+  answerMode: 'choices', recognitionMode: 'off', remoteConsent: false, allowSan: true, difficulty: 'NORMAL',
   vibration: true, effects: true, bgmTrack: 'focus', favoriteMinutes: [],
   sessionMode: 'count', count: 10, minutes: 2, direction: 'forward', selectedDeckId: null
 };

@@ -60,5 +60,5 @@ test('削除済み問題・ゲームの過去履歴を復元可能', () => {
 });
 test('設定復元の許可値と安全な既定値', () => {
   const s = sanitizeSettings({ bgmVolume: 3, recognitionMode: 'arbitrary', favoriteMinutes: [0, 2, 2, 120, 200], selectedDeckId: 'safe-uuid', difficulty: 'HARD' });
-  assert.equal(s.bgmVolume, .22); assert.equal(s.recognitionMode, 'local'); assert.deepEqual(s.favoriteMinutes, [2, 120]); assert.equal(s.difficulty, 'HARD');
+  assert.equal(s.bgmVolume, .22); assert.equal(s.recognitionMode, 'off'); assert.deepEqual(s.favoriteMinutes, [2, 120]); assert.equal(s.difficulty, 'HARD');
 });

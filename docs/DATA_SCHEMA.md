@@ -19,6 +19,9 @@
 ```
 grade: PERFECT/GREAT/GOOD/MISS。source: voice/manual/typed/timeout。elapsed/limitはミリ秒。recognizedは認識結果または文字回答。認識ミス修正は同じanswerのフラグとgradeを更新し、回答数を増やしません。
 
+v1.1.0の任意項目：question.choices（文字列配列、正解は自動追加）、excludeChoices（誤答にしない候補）、choiceGroup（品詞など）、choiceCategory（同種候補の優先）、promptLang/answerLang（既定ja-JP）。古いquestionの欠落を許容します。
+answer.sourceにはchoiceも追加。選択回答はselectedAnswerSnapshotとchoicesSnapshotを保持します。session.answerModeとsettings.answerModeはchoices/recall。旧settingsはchoicesへ補完し、既存sessionは変更しません。
+
 ## stat
 ```json
 {"id":"question-example:1","questionId":"question-example","deckId":"deck-example","asked":1,"correct":1,"incorrect":0,"PERFECT":1,"GREAT":0,"GOOD":0,"MISS":0,"totalTime":900,"totalRatio":0.2,"averageTime":900,"averageRatio":0.2,"streak":1,"accuracy":1,"mastery":73,"lastAnswered":"2026-09-30T00:10:01Z","lastMiss":null}
@@ -48,7 +51,7 @@ AI出力はformat=memory-beat-ai-edit。設定・統計・履歴は含みませ�
 ```json
 {"id":"custom","name":"my-music.mp3","blob":"IndexedDB上のBlob（JSON対象外）","importedAt":"2026-09-30T00:00:00Z"}
 ```
-metaは将来のmigration/設定拡張用に確保しています。
+metaには教材導入印（例：id=installed-toeic-v1、installedAt=ISO日時）を保存し、利用者が編集・削除した教材を毎起動で上書きしません。
 
 ## 互換性
 - 追加する任意項目は既定値を用意し、古いrecordの欠落を許容。
